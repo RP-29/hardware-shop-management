@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../../../lib/supabase'
 
 interface Supplier {
@@ -39,19 +39,29 @@ export default function PurchaseForm({
   }, [])
 
   async function fetchSuppliers() {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('suppliers')
       .select('id, name')
       .order('name')
+
+    if (error) {
+      console.error('Error fetching suppliers:', error)
+      return
+    }
 
     setSuppliers(data || [])
   }
 
   async function fetchProducts() {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('products')
       .select('id, name, current_stock')
       .order('name')
+
+    if (error) {
+      console.error('Error fetching products:', error)
+      return
+    }
 
     setProducts(data || [])
   }
@@ -60,9 +70,14 @@ export default function PurchaseForm({
     (p) => p.id === productId
   )
 
-  const totalAmount =
-    (Number(quantity) || 0) *
-    (Number(purchasePrice) || 0)
+  // Numeric conversions
+  const qty = Number(quantity) || 0
+  const price = Number(purchasePrice) || 0
+
+  // Live total calculation
+  const totalAmount = useMemo(() => {
+    return qty * price
+  }, [qty, price])
 
   async function handleSubmit(
     e: React.FormEvent
@@ -71,54 +86,89 @@ export default function PurchaseForm({
     setLoading(true)
     setError('')
 
-    const qty = Number(quantity) || 0
-    const price = Number(purchasePrice) || 0
-
-    if (!supplierId || !productId || qty <= 0) {
-      setError(
-        'Please select supplier, product and valid quantity.'
-      )
+    // Validation
+    if (!supplierId) {
+      setError('Please select a supplier.')
       setLoading(false)
       return
     }
 
-    // 1. Save purchase
-    const { error: purchaseError } =
-      await supabase.from('purchases').insert([
+    if (!productId) {
+      setError('Please select a product.')
+      setLoading(false)
+      return
+    }
+
+    if (qty <= 0) {
+      setError('Please enter a valid quantity.')
+      setLoading(false)
+      return
+    }
+
+    if (price <= 0) {
+      setError('Please enter a valid purchase price.')
+      setLoading(false)
+      return
+    }
+
+    if (totalAmount <= 0) {
+      setError('Total amount must be greater than zero.')
+      setLoading(false)
+      return
+    }
+
+    // Save purchase
+    // NOTE:
+    // - Reports page reads from `total`
+    // - Purchases list page may read from `total_amount`
+    // Saving both guarantees both screens work.
+    const { error: purchaseError } = await supabase
+      .from('purchases')
+      .insert([
         {
           supplier_id: supplierId,
           product_id: productId,
           quantity: qty,
           purchase_price: price,
+
+          // For Reports module
+          total: totalAmount,
+
+          // For Purchases List page
           total_amount: totalAmount,
+
+          paid_amount: 0,
+          due_amount: totalAmount,
           notes: notes || null,
         },
       ])
 
     if (purchaseError) {
+      console.error('Purchase insert error:', purchaseError)
       setError(purchaseError.message)
       setLoading(false)
       return
     }
 
-    // 2. Update stock
+    // Update stock
     const newStock =
-      (selectedProduct?.current_stock || 0) + qty
+      Number(selectedProduct?.current_stock || 0) + qty
 
-    const { error: stockError } =
-      await supabase
-        .from('products')
-        .update({
-          current_stock: newStock,
-        })
-        .eq('id', productId)
+    const { error: stockError } = await supabase
+      .from('products')
+      .update({
+        current_stock: newStock,
+      })
+      .eq('id', productId)
 
     if (stockError) {
+      console.error('Stock update error:', stockError)
       setError(stockError.message)
       setLoading(false)
       return
     }
 
+    // Success
     setLoading(false)
     onSuccess()
     onClose()
@@ -188,6 +238,8 @@ export default function PurchaseForm({
           {/* Quantity */}
           <input
             type="number"
+            min="1"
+            step="1"
             placeholder="Quantity"
             className="w-full border rounded-lg p-3"
             value={quantity}
@@ -200,6 +252,7 @@ export default function PurchaseForm({
           {/* Purchase Price */}
           <input
             type="number"
+            min="0"
             step="0.01"
             placeholder="Purchase Price (Per Unit)"
             className="w-full border rounded-lg p-3"
@@ -209,16 +262,15 @@ export default function PurchaseForm({
                 e.target.value
               )
             }
+            required
           />
 
-          {/* Current Stock Info */}
+          {/* Current Stock */}
           {selectedProduct && (
             <div className="bg-gray-50 rounded-lg p-3 text-sm text-gray-600">
               Current Stock:{' '}
               <strong>
-                {
-                  selectedProduct.current_stock
-                }
+                {selectedProduct.current_stock}
               </strong>
             </div>
           )}

@@ -2,11 +2,13 @@ import { useEffect, useState } from 'react'
 import AppLayout from '../../../components/layout/AppLayout'
 import ProductForm from '../components/ProductForm'
 import { supabase } from '../../../lib/supabase'
+import Barcode from 'react-barcode'
 
 interface Product {
   id: string
   name: string
   sku: string | null
+  barcode: string | null
   current_stock: number
   purchase_price: number
   selling_price: number
@@ -26,7 +28,16 @@ export default function ProductListPage() {
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [search, setSearch] = useState('')
-  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
+  const [selectedProduct, setSelectedProduct] =
+    useState<Product | null>(null)
+
+  // Barcode modal state
+  const [selectedBarcode, setSelectedBarcode] =
+    useState<string | null>(null)
+  const [
+    selectedProductName,
+    setSelectedProductName,
+  ] = useState('')
 
   useEffect(() => {
     fetchProducts()
@@ -38,22 +49,26 @@ export default function ProductListPage() {
     const { data, error } = await supabase
       .from('products')
       .select(`
-          id,
-          name,
-          sku,
-          current_stock,
-          purchase_price,
-          selling_price,
-          min_stock,
-          category_id,
-          brand_id,
-          categories (
-            name
-          ),
-          brands (
-            name
-          ) `)
-      .order('created_at', { ascending: false })
+        id,
+        name,
+        sku,
+        barcode,
+        current_stock,
+        purchase_price,
+        selling_price,
+        min_stock,
+        category_id,
+        brand_id,
+        categories (
+          name
+        ),
+        brands (
+          name
+        )
+      `)
+      .order('created_at', {
+        ascending: false,
+      })
 
     if (error) {
       console.error(error)
@@ -84,10 +99,19 @@ export default function ProductListPage() {
     fetchProducts()
   }
 
+  function handlePrintLabel() {
+    window.print()
+  }
+
   const filteredProducts = products.filter(
     (product) =>
-      product.name.toLowerCase().includes(search.toLowerCase()) ||
+      product.name
+        .toLowerCase()
+        .includes(search.toLowerCase()) ||
       (product.sku ?? '')
+        .toLowerCase()
+        .includes(search.toLowerCase()) ||
+      (product.barcode ?? '')
         .toLowerCase()
         .includes(search.toLowerCase())
   )
@@ -121,10 +145,12 @@ export default function ProductListPage() {
         <div className="bg-white rounded-xl shadow p-4">
           <input
             type="text"
-            placeholder="Search products by name or SKU..."
+            placeholder="Search by name, SKU or barcode..."
             className="w-full border rounded-lg px-4 py-3"
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) =>
+              setSearch(e.target.value)
+            }
           />
         </div>
 
@@ -147,6 +173,9 @@ export default function ProductListPage() {
                     SKU
                   </th>
                   <th className="text-left p-4 font-semibold">
+                    Barcode
+                  </th>
+                  <th className="text-left p-4 font-semibold">
                     Stock
                   </th>
                   <th className="text-left p-4 font-semibold">
@@ -165,98 +194,137 @@ export default function ProductListPage() {
                 {loading ? (
                   <tr>
                     <td
-                      colSpan={8}
+                      colSpan={9}
                       className="p-6 text-center text-gray-500"
                     >
                       Loading products...
                     </td>
                   </tr>
-                ) : filteredProducts.length === 0 ? (
+                ) : filteredProducts.length ===
+                  0 ? (
                   <tr>
                     <td
-                      colSpan={8}
+                      colSpan={9}
                       className="p-6 text-center text-gray-500"
                     >
                       No products found.
                     </td>
                   </tr>
                 ) : (
-                  filteredProducts.map((product) => (
-                    <tr
-                      key={product.id}
-                      className={`border-b hover:bg-gray-50 ${
-                        product.current_stock <=
-                          product.min_stock &&
-                        product.min_stock > 0
-                          ? 'bg-red-50'
-                          : ''
-                      }`}
-                    >
-                      <td className="p-4 font-medium">
-                        {product.name}
-                      </td>
-
-                      <td className="p-4 text-gray-600">
-                        {product.categories?.name || '-'}
-                      </td>
-
-                      <td className="p-4 text-gray-600">
-                        {product.brands?.name || '-'}
-                      </td>
-
-                      <td className="p-4 text-gray-600">
-                        {product.sku || '-'}
-                      </td>
-
-                      <td
-                        className={`p-4 font-semibold ${
+                  filteredProducts.map(
+                    (product) => (
+                      <tr
+                        key={product.id}
+                        className={`border-b hover:bg-gray-50 ${
                           product.current_stock <=
                             product.min_stock &&
                           product.min_stock > 0
-                            ? 'text-red-600'
-                            : 'text-gray-900'
+                            ? 'bg-red-50'
+                            : ''
                         }`}
                       >
-                        {product.current_stock}
-                      </td>
+                        <td className="p-4 font-medium">
+                          {product.name}
+                        </td>
 
-                      <td className="p-4">
-                        ₹{product.purchase_price}
-                      </td>
+                        <td className="p-4 text-gray-600">
+                          {product.categories
+                            ?.name || '-'}
+                        </td>
 
-                      <td className="p-4 font-semibold">
-                        ₹{product.selling_price}
-                      </td>
+                        <td className="p-4 text-gray-600">
+                          {product.brands
+                            ?.name || '-'}
+                        </td>
 
-                     <td className="p-4">
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => {
-                            setSelectedProduct(product)
-                            setShowForm(true)
-                          }}
-                          className="bg-amber-500 text-white px-3 py-1 rounded hover:bg-amber-600 text-sm"
+                        <td className="p-4 text-gray-600">
+                          {product.sku || '-'}
+                        </td>
+
+                        <td className="p-4 text-gray-600 font-mono text-sm">
+                          {product.barcode ||
+                            '-'}
+                        </td>
+
+                        <td
+                          className={`p-4 font-semibold ${
+                            product.current_stock <=
+                              product.min_stock &&
+                            product.min_stock > 0
+                              ? 'text-red-600'
+                              : 'text-gray-900'
+                          }`}
                         >
-                          Edit
-                        </button>
+                          {
+                            product.current_stock
+                          }
+                        </td>
 
-                        <button
-                          onClick={() => handleDelete(product.id)}
-                          className="bg-red-600 text-white px-3 py-1 rounded hover:bg-red-700 text-sm"
-                        >
-                          Delete
-                        </button>
-                      </div>
-                    </td>
-                    </tr>
-                  ))
+                        <td className="p-4">
+                          ₹
+                          {
+                            product.purchase_price
+                          }
+                        </td>
+
+                        <td className="p-4 font-semibold">
+                          ₹
+                          {
+                            product.selling_price
+                          }
+                        </td>
+
+                        <td className="p-4">
+                          <div className="flex flex-wrap gap-2">
+                            <button
+                              onClick={() => {
+                                setSelectedBarcode(
+                                  product.barcode ||
+                                    ''
+                                )
+                                setSelectedProductName(
+                                  product.name
+                                )
+                              }}
+                              className="bg-green-600 text-white px-3 py-1 rounded hover:bg-green-700 text-sm"
+                            >
+                              Print Label
+                            </button>
+
+                            <button
+                              onClick={() => {
+                                setSelectedProduct(
+                                  product
+                                )
+                                setShowForm(true)
+                              }}
+                              className="bg-amber-500 text-white px-3 py-1 rounded hover:bg-amber-600 text-sm"
+                            >
+                              Edit
+                            </button>
+
+                            <button
+                              onClick={() =>
+                                handleDelete(
+                                  product.id
+                                )
+                              }
+                              className="bg-red-600 text-white px-3 py-1 rounded hover:bg-red-700 text-sm"
+                            >
+                              Delete
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    )
+                  )
                 )}
               </tbody>
             </table>
           </div>
         </div>
 
-        {/* Add Product Modal */}
+        {/* Add/Edit Product Modal */}
         {showForm && (
           <ProductForm
             product={selectedProduct}
@@ -266,6 +334,51 @@ export default function ProductListPage() {
               setSelectedProduct(null)
             }}
           />
+        )}
+
+        {/* Barcode Label Modal */}
+        {selectedBarcode && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white p-6 rounded-xl shadow-xl max-w-md w-full text-center">
+              <h2 className="text-xl font-bold mb-2">
+                {selectedProductName}
+              </h2>
+
+              {/* Printable Area */}
+              <div
+                id="barcode-label"
+                className="flex flex-col items-center my-4"
+              >
+                <Barcode
+                  value={selectedBarcode}
+                  width={1.5}
+                  height={60}
+                  fontSize={14}
+                  displayValue={true}
+                />
+              </div>
+
+              {/* Screen-only buttons (hidden when printing) */}
+              <div className="flex justify-center gap-3 no-print">
+                <button
+                  onClick={handlePrintLabel}
+                  className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
+                >
+                  Print
+                </button>
+
+                <button
+                  onClick={() => {
+                    setSelectedBarcode(null)
+                    setSelectedProductName('')
+                  }}
+                  className="border px-4 py-2 rounded-lg hover:bg-gray-50"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
         )}
       </div>
     </AppLayout>

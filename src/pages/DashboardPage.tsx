@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import * as XLSX from 'xlsx'
-import AppLayout from '../components/layout/AppLayout'
-import { supabase } from '../lib/supabase'
+import html2canvas from 'html2canvas'
+import jsPDF from 'jspdf'
 import {
   LineChart,
   Line,
@@ -11,6 +11,9 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from 'recharts'
+
+import AppLayout from '../components/layout/AppLayout'
+import { supabase } from '../lib/supabase'
 
 interface DashboardStats {
   totalSales: number
@@ -70,221 +73,217 @@ export default function DashboardPage() {
 
   const [loading, setLoading] = useState(true)
 
+  const reportRef = useRef<HTMLDivElement>(null)
+
   useEffect(() => {
     fetchDashboardStats()
   }, [])
 
   async function fetchDashboardStats() {
-    setLoading(true)
+    try {
+      setLoading(true)
 
-    // ----------------------------
-    // Total Sales
-    // ----------------------------
-    const { data: salesData } = await supabase
-      .from('sales')
-      .select(
-        'created_at, grand_total, total_amount'
-      )
-
-    const totalSales = (salesData || []).reduce(
-      (sum, sale) =>
-        sum +
-        Number(
-          sale.grand_total ??
-            sale.total_amount ??
-            0
-        ),
-      0
-    )
-
-    // ----------------------------
-    // Total Purchases
-    // ----------------------------
-    const { data: purchasesData } = await supabase
-      .from('purchases')
-      .select('total_amount')
-
-    const totalPurchases = (
-      purchasesData || []
-    ).reduce(
-      (sum, purchase) =>
-        sum +
-        Number(
-          purchase.total_amount || 0
-        ),
-      0
-    )
-
-    // ----------------------------
-    // Products (for low stock)
-    // ----------------------------
-    const { data: productsData } = await supabase
-      .from('products')
-      .select(
-        'id, name, current_stock, min_stock'
-      )
-
-    const lowStockList = (productsData || [])
-      .filter(
-        (product) =>
-          Number(product.min_stock || 0) > 0 &&
-          Number(
-            product.current_stock || 0
-          ) <=
-            Number(product.min_stock || 0)
-      )
-      .sort(
-        (a, b) =>
-          Number(a.current_stock) -
-          Number(b.current_stock)
-      )
-
-    setLowStockProducts(
-      lowStockList as LowStockProduct[]
-    )
-
-    const lowStockItems = lowStockList.length
-
-    // ----------------------------
-    // Net Profit
-    // ----------------------------
-    const netProfit =
-      totalSales - totalPurchases
-
-    // ----------------------------
-    // Top Selling Products
-    // ----------------------------
-    const { data: saleItemsData } =
-      await supabase
-        .from('sale_items')
-        .select(`
-          quantity,
-          products (
-            name
-          )
-        `)
-
-    const productMap = new Map<
-      string,
-      number
-    >()
-
-    ;(saleItemsData || []).forEach(
-      (item: any) => {
-        const productName =
-          item.products?.name ||
-          'Unknown Product'
-
-        const quantity = Number(
-          item.quantity || 0
-        )
-
-        productMap.set(
-          productName,
-          (productMap.get(
-            productName
-          ) || 0) + quantity
-        )
-      }
-    )
-
-    const topSellingProducts = Array.from(
-      productMap.entries()
-    )
-      .map(
-        ([product_name, total_quantity]) => ({
-          product_name,
-          total_quantity,
-        })
-      )
-      .sort(
-        (a, b) =>
-          b.total_quantity -
-          a.total_quantity
-      )
-      .slice(0, 5)
-
-    setTopProducts(topSellingProducts)
-
-    // ----------------------------
-    // Recent Sales
-    // ----------------------------
-    const { data: recentSalesData } =
-      await supabase
+      // Total Sales
+      const { data: salesData } = await supabase
         .from('sales')
-        .select(`
-          id,
-          invoice_number,
-          created_at,
-          grand_total,
-          total_amount,
-          customers (
-            name
+        .select(
+          'created_at, grand_total, total_amount'
+        )
+
+      const totalSales = (salesData || []).reduce(
+        (sum, sale) =>
+          sum +
+          Number(
+            sale.grand_total ??
+              sale.total_amount ??
+              0
+          ),
+        0
+      )
+
+      // Total Purchases
+      const { data: purchasesData } =
+        await supabase
+          .from('purchases')
+          .select('total_amount')
+
+      const totalPurchases = (
+        purchasesData || []
+      ).reduce(
+        (sum, purchase) =>
+          sum +
+          Number(
+            purchase.total_amount || 0
+          ),
+        0
+      )
+
+      // Products (Low Stock)
+      const { data: productsData } =
+        await supabase
+          .from('products')
+          .select(
+            'id, name, current_stock, min_stock'
           )
-        `)
-        .order('created_at', {
-          ascending: false,
-        })
-        .limit(5)
 
-    setRecentSales(recentSalesData || [])
+      const lowStockList = (productsData || [])
+        .filter(
+          (product) =>
+            Number(product.min_stock || 0) >
+              0 &&
+            Number(
+              product.current_stock || 0
+            ) <=
+              Number(product.min_stock || 0)
+        )
+        .sort(
+          (a, b) =>
+            Number(a.current_stock) -
+            Number(b.current_stock)
+        )
 
-    // ----------------------------
-    // Monthly Sales Data
-    // ----------------------------
-    const monthlyMap = new Map<
-      string,
-      number
-    >()
+      setLowStockProducts(
+        lowStockList as LowStockProduct[]
+      )
 
-    ;(salesData || []).forEach(
-      (sale: any) => {
-        const date = sale.created_at
-          ? new Date(sale.created_at)
-          : null
+      const lowStockItems = lowStockList.length
 
-        if (!date) return
+      // Net Profit
+      const netProfit =
+        totalSales - totalPurchases
 
-        const month =
-          date.toLocaleString('en-IN', {
-            month: 'short',
-            year: '2-digit',
+      // Top Selling Products
+      const { data: saleItemsData } =
+        await supabase
+          .from('sale_items')
+          .select(`
+            quantity,
+            products (
+              name
+            )
+          `)
+
+      const productMap = new Map<
+        string,
+        number
+      >()
+
+      ;(saleItemsData || []).forEach(
+        (item: any) => {
+          const productName =
+            item.products?.name ||
+            'Unknown Product'
+
+          const quantity = Number(
+            item.quantity || 0
+          )
+
+          productMap.set(
+            productName,
+            (productMap.get(productName) ||
+              0) + quantity
+          )
+        }
+      )
+
+      const topSellingProducts = Array.from(
+        productMap.entries()
+      )
+        .map(
+          ([product_name, total_quantity]) => ({
+            product_name,
+            total_quantity,
           })
-
-        const amount = Number(
-          sale.grand_total ??
-            sale.total_amount ??
-            0
         )
-
-        monthlyMap.set(
-          month,
-          (monthlyMap.get(month) || 0) +
-            amount
+        .sort(
+          (a, b) =>
+            b.total_quantity - a.total_quantity
         )
-      }
-    )
+        .slice(0, 5)
 
-    const monthlySalesData = Array.from(
-      monthlyMap.entries()
-    ).map(([month, sales]) => ({
-      month,
-      sales,
-    }))
+      setTopProducts(topSellingProducts)
 
-    setMonthlySales(monthlySalesData)
+      // Recent Sales
+      const { data: recentSalesData } =
+        await supabase
+          .from('sales')
+          .select(`
+            id,
+            invoice_number,
+            created_at,
+            grand_total,
+            total_amount,
+            customers (
+              name
+            )
+          `)
+          .order('created_at', {
+            ascending: false,
+          })
+          .limit(5)
 
-    // ----------------------------
-    // Save Dashboard Stats
-    // ----------------------------
-    setStats({
-      totalSales,
-      totalPurchases,
-      netProfit,
-      lowStockItems,
-    })
+      setRecentSales(recentSalesData || [])
 
-    setLoading(false)
+      // Monthly Sales Data
+      const monthlyMap = new Map<
+        string,
+        number
+      >()
+
+      ;(salesData || []).forEach(
+        (sale: any) => {
+          if (!sale.created_at) return
+
+          const date = new Date(
+            sale.created_at
+          )
+
+          const month = date.toLocaleString(
+            'en-IN',
+            {
+              month: 'short',
+              year: '2-digit',
+            }
+          )
+
+          const amount = Number(
+            sale.grand_total ??
+              sale.total_amount ??
+              0
+          )
+
+          monthlyMap.set(
+            month,
+            (monthlyMap.get(month) || 0) +
+              amount
+          )
+        }
+      )
+
+      const monthlySalesData = Array.from(
+        monthlyMap.entries()
+      ).map(([month, sales]) => ({
+        month,
+        sales,
+      }))
+
+      setMonthlySales(monthlySalesData)
+
+      // Save Stats
+      setStats({
+        totalSales,
+        totalPurchases,
+        netProfit,
+        lowStockItems,
+      })
+    } catch (error) {
+      console.error(
+        'Failed to load dashboard data:',
+        error
+      )
+    } finally {
+      setLoading(false)
+    }
   }
 
   function formatCurrency(amount: number) {
@@ -296,8 +295,7 @@ export default function DashboardPage() {
   }
 
   function handleExportExcel() {
-    const workbook =
-      XLSX.utils.book_new()
+    const workbook = XLSX.utils.book_new()
 
     // Summary
     const summaryData = [
@@ -324,34 +322,28 @@ export default function DashboardPage() {
     )
 
     // Top Selling Products
-    const topProductsSheet =
-      XLSX.utils.json_to_sheet(topProducts)
-
     XLSX.utils.book_append_sheet(
       workbook,
-      topProductsSheet,
+      XLSX.utils.json_to_sheet(topProducts),
       'Top Selling Products'
     )
 
     // Low Stock Products
-    const lowStockSheet =
-      XLSX.utils.json_to_sheet(
-        lowStockProducts
-      )
-
     XLSX.utils.book_append_sheet(
       workbook,
-      lowStockSheet,
+      XLSX.utils.json_to_sheet(
+        lowStockProducts
+      ),
       'Low Stock'
     )
 
     // Recent Sales
-    const recentSalesSheet =
+    XLSX.utils.book_append_sheet(
+      workbook,
       XLSX.utils.json_to_sheet(
         recentSales.map((sale) => ({
           Invoice:
-            sale.invoice_number ||
-            'N/A',
+            sale.invoice_number || 'N/A',
           Customer:
             sale.customers?.name || '-',
           Amount:
@@ -362,15 +354,10 @@ export default function DashboardPage() {
             sale.created_at
           ).toLocaleDateString(),
         }))
-      )
-
-    XLSX.utils.book_append_sheet(
-      workbook,
-      recentSalesSheet,
+      ),
       'Recent Sales'
     )
 
-    // Download
     const fileName = `hardware-report-${new Date()
       .toISOString()
       .slice(0, 10)}.xlsx`
@@ -378,10 +365,133 @@ export default function DashboardPage() {
     XLSX.writeFile(workbook, fileName)
   }
 
+  async function handleExportPDF() {
+    if (!reportRef.current) return
+
+    try {
+      const canvas = await html2canvas(
+        reportRef.current,
+        {
+          scale: 2,
+          useCORS: true,
+          backgroundColor: '#ffffff',
+          logging: false,
+          onclone: (clonedDoc) => {
+            // html2canvas does not support modern CSS color functions like oklch.
+            // Replace them with safe fallback colors.
+            const allElements = clonedDoc.querySelectorAll('*')
+
+            allElements.forEach((el) => {
+              const element = el as HTMLElement
+              const computed = clonedDoc.defaultView?.getComputedStyle(element)
+
+              if (!computed) return
+
+              const properties = [
+                'color',
+                'backgroundColor',
+                'borderTopColor',
+                'borderRightColor',
+                'borderBottomColor',
+                'borderLeftColor',
+              ]
+
+              properties.forEach((prop) => {
+                const value = (computed as any)[prop]
+
+                if (
+                  typeof value === 'string' &&
+                  value.includes('oklch(')
+                ) {
+                  if (prop === 'backgroundColor') {
+                    ;(element.style as any)[prop] = '#ffffff'
+                  } else if (prop.startsWith('border')) {
+                    ;(element.style as any)[prop] = '#d1d5db'
+                  } else {
+                    ;(element.style as any)[prop] = '#111827'
+                  }
+                }
+              })
+            })
+          },
+        }
+      )
+
+      const imgData = canvas.toDataURL('image/png')
+
+      const pdf = new jsPDF('p', 'mm', 'a4')
+
+      const pageWidth =
+        pdf.internal.pageSize.getWidth()
+      const pageHeight =
+        pdf.internal.pageSize.getHeight()
+
+      const margin = 10
+      const usableWidth =
+        pageWidth - margin * 2
+
+      const imgHeight =
+        (canvas.height * usableWidth) /
+        canvas.width
+
+      let heightLeft = imgHeight
+      let position = margin
+
+      // First page
+      pdf.addImage(
+        imgData,
+        'PNG',
+        margin,
+        position,
+        usableWidth,
+        imgHeight
+      )
+
+      heightLeft -=
+        pageHeight - margin * 2
+
+      // Additional pages if needed
+      while (heightLeft > 0) {
+        position =
+          heightLeft - imgHeight + margin
+
+        pdf.addPage()
+        pdf.addImage(
+          imgData,
+          'PNG',
+          margin,
+          position,
+          usableWidth,
+          imgHeight
+        )
+
+        heightLeft -=
+          pageHeight - margin * 2
+      }
+
+      const fileName = `dashboard-report-${new Date()
+        .toISOString()
+        .slice(0, 10)}.pdf`
+
+      pdf.save(fileName)
+    } catch (error) {
+      console.error(
+        'PDF generation failed:',
+        error
+      )
+      alert(
+        'Failed to generate PDF. Open the browser console (F12) to see the exact error.' 
+      )
+    }
+  }
+
   return (
     <AppLayout>
-      <div className="space-y-6">
-        {/* Page Title + Export Button */}
+      <div
+        ref={reportRef}
+        className="space-y-6 bg-white p-4 rounded-xl"
+      >
+        {/* Header */}
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div>
             <h1 className="text-3xl font-bold text-gray-900">
@@ -393,12 +503,21 @@ export default function DashboardPage() {
             </p>
           </div>
 
-          <button
-            onClick={handleExportExcel}
-            className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700"
-          >
-            Download Excel Report
-          </button>
+          <div className="flex flex-wrap gap-3">
+            <button
+              onClick={handleExportExcel}
+              className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700"
+            >
+              Download Excel Report
+            </button>
+
+            <button
+              onClick={handleExportPDF}
+              className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700"
+            >
+              Download PDF Report
+            </button>
+          </div>
         </div>
 
         {/* KPI Cards */}
@@ -453,11 +572,7 @@ export default function DashboardPage() {
         </div>
 
         {/* Top Selling Products */}
-        <div className="bg-white rounded-xl shadow p-6">
-          <h2 className="text-xl font-semibold mb-4">
-            Top Selling Products
-          </h2>
-
+        <SectionCard title="Top Selling Products">
           {topProducts.length === 0 ? (
             <p className="text-gray-500">
               No sales data available.
@@ -494,14 +609,10 @@ export default function DashboardPage() {
               )}
             </div>
           )}
-        </div>
+        </SectionCard>
 
         {/* Low Stock Products */}
-        <div className="bg-white rounded-xl shadow p-6">
-          <h2 className="text-xl font-semibold mb-4">
-            Low Stock Products
-          </h2>
-
+        <SectionCard title="Low Stock Products">
           {lowStockProducts.length === 0 ? (
             <p className="text-gray-500">
               All products have
@@ -523,7 +634,6 @@ export default function DashboardPage() {
                     </th>
                   </tr>
                 </thead>
-
                 <tbody>
                   {lowStockProducts.map(
                     (product) => (
@@ -532,9 +642,7 @@ export default function DashboardPage() {
                         className="border-b"
                       >
                         <td className="py-3 font-medium text-red-700">
-                          {
-                            product.name
-                          }
+                          {product.name}
                         </td>
                         <td className="py-3 text-right font-semibold text-red-600">
                           {
@@ -542,9 +650,7 @@ export default function DashboardPage() {
                           }
                         </td>
                         <td className="py-3 text-right text-gray-600">
-                          {
-                            product.min_stock
-                          }
+                          {product.min_stock}
                         </td>
                       </tr>
                     )
@@ -553,14 +659,10 @@ export default function DashboardPage() {
               </table>
             </div>
           )}
-        </div>
+        </SectionCard>
 
         {/* Recent Sales */}
-        <div className="bg-white rounded-xl shadow p-6">
-          <h2 className="text-xl font-semibold mb-4">
-            Recent Sales
-          </h2>
-
+        <SectionCard title="Recent Sales">
           {recentSales.length === 0 ? (
             <p className="text-gray-500">
               No recent sales available.
@@ -584,7 +686,6 @@ export default function DashboardPage() {
                     </th>
                   </tr>
                 </thead>
-
                 <tbody>
                   {recentSales.map((sale) => (
                     <tr
@@ -595,12 +696,10 @@ export default function DashboardPage() {
                         {sale.invoice_number ||
                           'N/A'}
                       </td>
-
                       <td className="py-3 text-gray-900">
                         {sale.customers?.name ||
                           '-'}
                       </td>
-
                       <td className="py-3 text-right font-semibold">
                         {formatCurrency(
                           Number(
@@ -610,7 +709,6 @@ export default function DashboardPage() {
                           )
                         )}
                       </td>
-
                       <td className="py-3 text-right text-gray-600">
                         {new Date(
                           sale.created_at
@@ -622,14 +720,10 @@ export default function DashboardPage() {
               </table>
             </div>
           )}
-        </div>
+        </SectionCard>
 
         {/* Monthly Sales Trend */}
-        <div className="bg-white rounded-xl shadow p-6">
-          <h2 className="text-xl font-semibold mb-4">
-            Monthly Sales Trend
-          </h2>
-
+        <SectionCard title="Monthly Sales Trend">
           {monthlySales.length === 0 ? (
             <p className="text-gray-500">
               No sales data available.
@@ -663,19 +757,7 @@ export default function DashboardPage() {
               </ResponsiveContainer>
             </div>
           )}
-        </div>
-
-        {/* Reports Placeholder */}
-        <div className="bg-white rounded-xl shadow p-6">
-          <h2 className="text-xl font-semibold mb-2">
-            Reports
-          </h2>
-          <p className="text-gray-600">
-            Advanced charts and
-            analytics can be added
-            next.
-          </p>
-        </div>
+        </SectionCard>
       </div>
     </AppLayout>
   )
@@ -703,6 +785,25 @@ function StatCard({
       <p className="text-2xl font-bold text-gray-900 mt-1 break-words">
         {value}
       </p>
+    </div>
+  )
+}
+
+interface SectionCardProps {
+  title: string
+  children: React.ReactNode
+}
+
+function SectionCard({
+  title,
+  children,
+}: SectionCardProps) {
+  return (
+    <div className="bg-white rounded-xl shadow p-6">
+      <h2 className="text-xl font-semibold mb-4">
+        {title}
+      </h2>
+      {children}
     </div>
   )
 }

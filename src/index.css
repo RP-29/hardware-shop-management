@@ -111,3 +111,28 @@ code {
   padding: 4px 8px;
   background: var(--code-bg);
 }
+
+@media print {
+  body * {
+    visibility: hidden;
+  }
+
+  #barcode-label,
+  #barcode-label * {
+    visibility: visible;
+  }
+
+  #barcode-label {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .no-print {
+    display: none !important;
+  }
+}

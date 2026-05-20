@@ -8,8 +8,11 @@ import {
   FileText,
   Settings,
   X,
+  FolderTree,
+  Tag,
 } from 'lucide-react'
 import { NavLink } from 'react-router-dom'
+import SidebarLogo from './SidebarLogo'
 
 interface SidebarProps {
   isOpen: boolean
@@ -38,6 +41,11 @@ const menuItems = [
     path: '/sales',
   },
   {
+    name: 'Receive Payments',
+    icon: Receipt,
+    path: '/receive-payments',
+  },
+  {
     name: 'Customers',
     icon: Users,
     path: '/customers',
@@ -53,6 +61,16 @@ const menuItems = [
     path: '/reports',
   },
   {
+    name: 'Categories',
+    icon: FolderTree,
+    path: '/categories',
+  },
+  {
+    name: 'Brands',
+    icon: Tag,
+    path: '/brands',
+  },
+  {
     name: 'Settings',
     icon: Settings,
     path: '/settings',
@@ -66,31 +84,29 @@ export default function Sidebar({
   return (
     <aside
       className={`
-        fixed top-0 left-0 z-50 h-screen w-64 bg-slate-900 text-white
+        fixed top-0 left-0 z-50
+        h-screen w-64
+        bg-slate-900 text-white
+        overflow-y-auto overflow-x-hidden
         transform transition-transform duration-300
         ${isOpen ? 'translate-x-0' : '-translate-x-full'}
         lg:translate-x-0
       `}
     >
       {/* Logo */}
-      <div className="p-6 border-b border-slate-800 flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">Hardware ERP</h1>
-          <p className="text-xs text-slate-400 mt-1">
-            Management System
-          </p>
-        </div>
+      <div className="p-4 border-b border-slate-800 sticky top-0 bg-slate-900 z-10 relative">
+        <SidebarLogo />
 
         <button
           onClick={onClose}
-          className="lg:hidden p-1 hover:bg-slate-800 rounded"
+          className="lg:hidden absolute top-4 right-4 p-1 hover:bg-slate-800 rounded"
         >
           <X size={20} />
         </button>
       </div>
 
       {/* Navigation */}
-      <nav className="p-4 space-y-2">
+      <nav className="p-4 space-y-2 pb-6">
         {menuItems.map((item) => {
           const Icon = item.icon
 

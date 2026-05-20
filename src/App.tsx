@@ -11,6 +11,11 @@ import PurchaseListPage from './features/purchases/pages/PurchaseListPage'
 import CustomerListPage from './features/customers/pages/CustomerListPage'
 import SaleListPage from './features/sales/pages/SaleListPage'
 import InvoicePage from './features/sales/pages/InvoicePage'
+import ReceivePaymentPage from './features/payments/pages/ReceivePaymentPage'
+import CategoryPage from './features/categories/pages/CategoryPage'
+import BrandPage from './features/brands/pages/BrandPage'
+import SettingsPage from './features/settings/pages/SettingsPage'
+import ReportsPage from './features/reports/pages/ReportsPage'
 
 function App() {
   return (
@@ -100,8 +105,30 @@ function App() {
             }
           />
 
+          <Route
+            path="/settings"
+            element={
+              <ProtectedRoute>
+                <SettingsPage />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/reports"
+            element={
+              <ProtectedRoute>
+                <ReportsPage />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route path="/receive-payments" element={<ReceivePaymentPage />} />
+
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+     
+
     </BrowserRouter>
   )
 }
