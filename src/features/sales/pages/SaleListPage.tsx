@@ -6,14 +6,12 @@ import { Link } from 'react-router-dom'
 
 interface Sale {
   id: string
-  quantity: number
-  selling_price: number
-  total_amount: number
+  invoice_number: string | null
+  customer_name: string | null
+  grand_total: number
   created_at: string
+
   customers: {
-    name: string
-  } | null
-  products: {
     name: string
   } | null
 }
@@ -35,14 +33,11 @@ export default function SaleListPage() {
       .from('sales')
       .select(`
         id,
-        quantity,
-        selling_price,
-        total_amount,
+        invoice_number,
+        customer_name,
+        grand_total,
         created_at,
         customers (
-          name
-        ),
-        products (
           name
         )
       `)
@@ -59,14 +54,14 @@ export default function SaleListPage() {
     setLoading(false)
   }
 
-  const filteredSales = sales.filter(
-    (sale) =>
-      sale.customers?.name
-        ?.toLowerCase()
-        .includes(search.toLowerCase()) ||
-      sale.products?.name
-        ?.toLowerCase()
-        .includes(search.toLowerCase())
+  const filteredSales = sales.filter((sale) =>
+    (
+      sale.customer_name ||
+      sale.customers?.name ||
+      ''
+    )
+      .toLowerCase()
+      .includes(search.toLowerCase())
   )
 
   return (
@@ -114,19 +109,13 @@ export default function SaleListPage() {
                     Date
                   </th>
                   <th className="text-left p-4 font-semibold">
+                    Invoice No.
+                  </th>
+                  <th className="text-left p-4 font-semibold">
                     Customer
                   </th>
                   <th className="text-left p-4 font-semibold">
-                    Product
-                  </th>
-                  <th className="text-left p-4 font-semibold">
-                    Quantity
-                  </th>
-                  <th className="text-left p-4 font-semibold">
-                    Selling Price
-                  </th>
-                  <th className="text-left p-4 font-semibold">
-                    Total Amount
+                    Grand Total
                   </th>
                   <th className="text-left p-4 font-semibold">
                     Invoice
@@ -164,27 +153,18 @@ export default function SaleListPage() {
                           sale.created_at
                         ).toLocaleDateString()}
                       </td>
+                      <td className="p-4">
+                        {sale.invoice_number || 'N/A'}
+                      </td>
 
                       <td className="p-4 font-medium">
-                        {sale.customers?.name ||
-                          '-'}
-                      </td>
-
-                      <td className="p-4">
-                        {sale.products?.name ||
-                          '-'}
-                      </td>
-
-                      <td className="p-4">
-                        {sale.quantity}
-                      </td>
-
-                      <td className="p-4">
-                        ₹{sale.selling_price}
+                        {sale.customer_name ||
+                          sale.customers?.name ||
+                          'Walk-in Customer'}
                       </td>
 
                       <td className="p-4 font-semibold">
-                        ₹{sale.total_amount}
+                        ₹{sale.grand_total}
                       </td>
 
                       <td className="p-4">

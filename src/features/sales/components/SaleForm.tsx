@@ -33,6 +33,7 @@ export default function SaleForm({
   const [products, setProducts] = useState<Product[]>([])
 
   const [customerId, setCustomerId] = useState('')
+  const [manualCustomerName, setManualCustomerName] = useState('')
   const [notes, setNotes] = useState('')
   const [amountPaid, setAmountPaid] = useState('')
   const [paymentMethod, setPaymentMethod] = useState('Cash')
@@ -240,9 +241,9 @@ export default function SaleForm({
     setLoading(true)
     setError('')
 
-    if (!customerId) {
+    if (!customerId && !manualCustomerName.trim()) {
       setError(
-        'Please select a customer.'
+        'Please select a customer or enter a customer name.'
       )
       setLoading(false)
       return
@@ -296,7 +297,13 @@ export default function SaleForm({
         .insert([
           {
             customer_id:
-              customerId,
+              manualCustomerName.trim()
+                ? null
+                : customerId || null,
+
+            customer_name:
+              manualCustomerName.trim() || null,
+
             subtotal:
               grandTotal,
             total_amount:
@@ -427,36 +434,60 @@ export default function SaleForm({
             </div>
           )}
 
+       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* Existing Customer */}
+        <div>
+          <label className="block text-sm font-medium mb-2">
+            Existing Customer
+          </label>
+
           <select
             className="w-full border rounded-lg p-3"
             value={customerId}
-            onChange={(e) =>
-              setCustomerId(
-                e.target.value
-              )
+            onChange={(e) => {
+            setCustomerId(e.target.value)
+
+            if (e.target.value) {
+              setManualCustomerName('')
             }
-            required
+          }}
           >
             <option value="">
               Select Customer
             </option>
-            {customers.map(
-              (customer) => (
-                <option
-                  key={
-                    customer.id
-                  }
-                  value={
-                    customer.id
-                  }
-                >
-                  {
-                    customer.name
-                  }
-                </option>
-              )
-            )}
+
+            {customers.map((customer) => (
+              <option
+                key={customer.id}
+                value={customer.id}
+              >
+                {customer.name}
+              </option>
+            ))}
           </select>
+        </div>
+
+        {/* Manual Customer Name */}
+        <div>
+          <label className="block text-sm font-medium mb-2">
+            Customer Name
+          </label>
+
+          <input
+            type="text"
+            placeholder="Walk-in Customer"
+            value={manualCustomerName}
+            onChange={(e) => {
+              setManualCustomerName(e.target.value)
+
+              if (e.target.value.trim()) {
+                setCustomerId('')
+              }
+            }}
+            className="w-full border rounded-lg p-3"
+          />
+        </div>
+        </div>
 
           {/* Barcode Scan Input */}
           <div>

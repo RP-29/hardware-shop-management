@@ -37,6 +37,7 @@ interface TopSellingProduct {
 interface RecentSale {
   id: string
   invoice_number: string | null
+  customer_name?: string | null
   created_at: string
   grand_total: number | null
   total_amount: number | null
@@ -210,6 +211,7 @@ export default function DashboardPage() {
           .select(`
             id,
             invoice_number,
+            customer_name,
             created_at,
             grand_total,
             total_amount,
@@ -498,8 +500,7 @@ export default function DashboardPage() {
               Dashboard Overview
             </h1>
             <p className="text-gray-600 mt-1">
-              Welcome to Hardware Shop
-              Management System.
+              Welcome to RK Enterprise
             </p>
           </div>
 
@@ -697,7 +698,7 @@ export default function DashboardPage() {
                           'N/A'}
                       </td>
                       <td className="py-3 text-gray-900">
-                        {sale.customers?.name ||
+                        {sale.customer_name || sale.customers?.name ||
                           '-'}
                       </td>
                       <td className="py-3 text-right font-semibold">

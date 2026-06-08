@@ -18,6 +18,7 @@ interface InvoiceItem {
 interface Invoice {
   id: string
   invoice_number: string | null
+  customer_name?: string | null
   created_at: string
   grand_total?: number | null
   total_amount?: number | null
@@ -100,6 +101,7 @@ export default function InvoicePage() {
       .select(`
         id,
         invoice_number,
+        customer_name,
         created_at,
         grand_total,
         total_amount,
@@ -238,7 +240,7 @@ export default function InvoicePage() {
       y += 6
 
       pdf.setFont(undefined, 'normal')
-      pdf.text(invoice.customers?.name || 'Walk-in Customer', 20, y)
+      pdf.text(invoice.customer_name ||  invoice.customers?.name || 'Walk-in Customer', 20, y)
       y += 6
 
       if (invoice.customers?.phone) {
@@ -410,7 +412,7 @@ export default function InvoicePage() {
 
           <div className="text-gray-700 space-y-1">
             <p className="font-medium text-gray-900">
-              {invoice.customers?.name || 'Walk-in Customer'}
+              {invoice.customer_name || invoice.customers?.name || 'Walk-in Customer'}
             </p>
 
             {invoice.customers?.phone && (
